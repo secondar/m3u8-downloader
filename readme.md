@@ -43,7 +43,7 @@ $env:GOOS="windows";$env:GOARCH="386";go build -o M3u8Download-Windwos-x86.exe m
 # Windows 64位 (x86_64)
 $env:GOOS="windows";$env:GOARCH="amd64";go build -o M3u8Download-Windwos-x86_64.exe main.go
 # Windows ARM 32位
-$env:GOOS="windows" $env:GOARCH="arm";go build -o M3u8Download-Windwos-Arm.exe main.go
+$env:GOOS="windows";$env:GOARCH="arm";go build -o M3u8Download-Windwos-Arm.exe main.go
 # Windows ARM 64位
 $env:GOOS="windows";$env:GOARCH="arm64";go build -o M3u8Download-Windwos-Arm_64.exe main.go
 ```
