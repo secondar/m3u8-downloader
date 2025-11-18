@@ -85,6 +85,7 @@ func Run() {
 	mux.HandleFunc("/setConf", setConf)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 	handler := TokenMiddleware(mux)
+	utils.Info(fmt.Sprintf("M3u8Download服务已启动，请访问：http://localhost:65533"))
 	err = http.ListenAndServe(":65533", handler)
 	if err != nil {
 		panic(err)
