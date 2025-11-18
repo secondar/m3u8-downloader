@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -80,6 +81,8 @@ func Run() {
 	mux.HandleFunc("/stopAll", stopAll)
 	mux.HandleFunc("/list", list)
 	mux.HandleFunc("/cleanUp", cleanUp)
+	mux.HandleFunc("/getConf", getConf)
+	mux.HandleFunc("/setConf", setConf)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 	handler := TokenMiddleware(mux)
 	err = http.ListenAndServe(":65533", handler)
@@ -89,6 +92,15 @@ func Run() {
 }
 func TokenMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 添加CORS头部
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Token")
+		// 处理预检请求
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		// 定义不需要token验证的路径
 		exemptPaths := []string{"/", "/checkToken", "/static/"}
 		// 检查当前路径是否在豁免列表中
@@ -125,6 +137,9 @@ func checkToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := r.FormValue("token")
+	token = strings.Trim(token, "\n")
+	token = strings.Trim(token, "\r")
+	token = strings.Trim(token, " ")
 	if token != Token {
 		http.Error(w, "Invalid X-Token", http.StatusUnauthorized)
 		return
@@ -138,6 +153,9 @@ func editToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := r.FormValue("token")
+	token = strings.Trim(token, "\n")
+	token = strings.Trim(token, "\r")
+	token = strings.Trim(token, " ")
 	if token == "" {
 		_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 400, Msg: "token不能为空"}))
 		return
@@ -152,7 +170,7 @@ func editToken(w http.ResponseWriter, r *http.Request) {
 }
 func index(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	http.ServeFile(w, r, filepath.Join("./view", "index.html"))
+	http.ServeFile(w, r, filepath.Join("./static", "index.html"))
 }
 func add(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
@@ -198,7 +216,7 @@ func add(w http.ResponseWriter, r *http.Request) {
 	}
 	var threads int
 	threads, err = strconv.Atoi(Threads)
-	if err != nil || threads <= 0 {
+	if err != nil || threads <= 0 || threads > 64 {
 		threads = 64
 	}
 	query := "INSERT INTO task (uuid,SavePath,Filename,Url,UserAgent,Cookie,Origin,Referer,Proxy,Threads,Status) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
@@ -220,7 +238,6 @@ func del(w http.ResponseWriter, r *http.Request) {
 	Uuid = strings.Trim(Uuid, "\n")
 	Uuid = strings.Trim(Uuid, "\r")
 	Uuid = strings.Trim(Uuid, " ")
-	fmt.Println(Uuid)
 	if _, ok := TaskThreadPool.DownloaderList[Uuid]; !ok {
 		_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 400, Msg: "任务不存在"}))
 		return
@@ -230,7 +247,8 @@ func del(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 200, Msg: "任务删除成功"}))
 }
 func delAll(w http.ResponseWriter, r *http.Request) {
-	for i, _ := range TaskThreadPool.DownloaderList {
+	_ = r
+	for i := range TaskThreadPool.DownloaderList {
 		TaskThreadPool.DownloaderList[i].Status = 5
 		_, _ = Sqlite.Cxt.Exec("DELETE FROM task WHERE uuid = ?", TaskThreadPool.DownloaderList[i].Uuid)
 	}
@@ -246,7 +264,6 @@ func stop(w http.ResponseWriter, r *http.Request) {
 	Uuid = strings.Trim(Uuid, "\n")
 	Uuid = strings.Trim(Uuid, "\r")
 	Uuid = strings.Trim(Uuid, " ")
-	fmt.Println(Uuid)
 	if _, ok := TaskThreadPool.DownloaderList[Uuid]; !ok {
 		_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 400, Msg: "任务不存在"}))
 		return
@@ -255,7 +272,8 @@ func stop(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 200, Msg: "任务终止成功"}))
 }
 func stopAll(w http.ResponseWriter, r *http.Request) {
-	for i, _ := range TaskThreadPool.DownloaderList {
+	_ = r
+	for i := range TaskThreadPool.DownloaderList {
 		TaskThreadPool.DownloaderList[i].Status = 4
 	}
 	_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 200, Msg: "任务终止成功"}))
@@ -264,30 +282,44 @@ func list(w http.ResponseWriter, r *http.Request) {
 	var status = r.URL.Query().Get("status")
 	var result Result
 	var data []map[string]interface{}
-	item := make(map[string]interface{})
 	result.Code = 200
 	result.Msg = "success"
+	DownloaderList := TaskThreadPool.DownloaderList
 	if status == "1" {
-		for key, _ := range TaskThreadPool.DownloaderList {
-			TaskThreadPool.DownloaderList[key].GetDownloaderTaskProgress()
-			item["Speed"] = fmt.Sprintf("%.2f KB/s", TaskThreadPool.DownloaderList[key].Speed)
-			item["ReadSize"] = fmt.Sprintf("%.2f MB", float64(TaskThreadPool.DownloaderList[key].ReadSize/1024)/1024)
-			item["Active"] = TaskThreadPool.DownloaderList[key].Active
-			item["Complete"] = TaskThreadPool.DownloaderList[key].Complete
-			item["Total"] = len(TaskThreadPool.DownloaderList[key].TsList)
-			item["Uuid"] = TaskThreadPool.DownloaderList[key].Uuid
-			item["SavePath"] = TaskThreadPool.DownloaderList[key].SavePath
-			item["Filename"] = TaskThreadPool.DownloaderList[key].Filename
-			item["Url"] = TaskThreadPool.DownloaderList[key].Url
-			item["UserAgent"] = TaskThreadPool.DownloaderList[key].UserAgent
-			item["Cookie"] = TaskThreadPool.DownloaderList[key].Cookie
-			item["Origin"] = TaskThreadPool.DownloaderList[key].Origin
-			item["Referer"] = TaskThreadPool.DownloaderList[key].Referer
-			item["Proxy"] = TaskThreadPool.DownloaderList[key].Proxy
-			item["Threads"] = TaskThreadPool.DownloaderList[key].Threads
-			item["Status"] = TaskThreadPool.DownloaderList[key].Status
-			item["Msg"] = TaskThreadPool.DownloaderList[key].Msg
-			item["Duration"] = TaskThreadPool.DownloaderList[key].Duration
+		// 创建临时切片用于排序
+		var downloaders []*downloader.Downloader
+		for _, v := range DownloaderList {
+			downloaders = append(downloaders, v)
+		}
+
+		// 按照 Uuid 排序确保一致性
+		sort.Slice(downloaders, func(i, j int) bool {
+			return downloaders[i].Uuid < downloaders[j].Uuid
+		})
+
+		// 按排序后的顺序处理
+		for _, v := range downloaders {
+			item := make(map[string]interface{})
+			v.GetDownloaderTaskProgress()
+			item["Speed"] = fmt.Sprintf("%.2f KB/s", v.Speed/1024)
+			item["ReadSize"] = fmt.Sprintf("%.2f MB", float64(v.ReadSize/1024)/1024)
+			item["Active"] = v.Active
+			item["Complete"] = v.Complete
+			item["Total"] = len(v.TsList)
+			item["TsList"] = v.TsList
+			item["Uuid"] = v.Uuid
+			item["SavePath"] = v.SavePath
+			item["Filename"] = v.Filename
+			item["Url"] = v.Url
+			item["UserAgent"] = v.UserAgent
+			item["Cookie"] = v.Cookie
+			item["Origin"] = v.Origin
+			item["Referer"] = v.Referer
+			item["Proxy"] = v.Proxy
+			item["Threads"] = v.Threads
+			item["Status"] = v.Status
+			item["Msg"] = v.Msg
+			item["Duration"] = v.Duration
 			data = append(data, item)
 		}
 	} else {
@@ -296,6 +328,7 @@ func list(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			TaskThreadPool.SqliteMutex.Unlock()
 			for rows.Next() {
+				item := make(map[string]interface{})
 				row := downloader.Downloader{}
 				err = rows.Scan(&row.Uuid, &row.SavePath, &row.Filename, &row.Url, &row.UserAgent, &row.Cookie, &row.Origin, &row.Referer, &row.Proxy, &row.Threads, &row.Status, &row.Msg, &row.Duration)
 				if err == nil {
@@ -320,10 +353,10 @@ func list(w http.ResponseWriter, r *http.Request) {
 			}
 			_ = rows.Close()
 		} else {
+			TaskThreadPool.SqliteMutex.Unlock()
 			result.Code = 400
 			result.Msg = err.Error()
 		}
-		TaskThreadPool.SqliteMutex.Unlock()
 	}
 	result.Data = data
 	_, _ = fmt.Fprintf(w, struct2Json(result))
@@ -335,6 +368,7 @@ func cleanUp(w http.ResponseWriter, r *http.Request) {
 	status = strings.Trim(status, " ")
 	if status == "" || status == "1" {
 		_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 400, Msg: "进行中的任务不可清理"}))
+		return
 	}
 	_, err := Sqlite.Cxt.Exec("DELETE FROM task WHERE Status = ?", status)
 	if err != nil {
@@ -342,6 +376,69 @@ func cleanUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 200, Msg: "任务清理成功"}))
+}
+func getConf(w http.ResponseWriter, r *http.Request) {
+	_ = r
+	var key, value string
+	var rows *sql.Rows
+	var err error
+	rows, err = Sqlite.Cxt.Query(fmt.Sprintf("SELECT * FROM conf"))
+	if err != nil {
+		_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 400, Msg: "进行中的任务不可清理"}))
+		return
+	}
+	data := make(map[string]interface{})
+	for rows.Next() {
+		key = ""
+		value = ""
+		err = rows.Scan(&key, &value)
+		data[key] = value
+	}
+	_ = rows.Close()
+	_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 200, Msg: "success", Data: data}))
+}
+func setConf(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "Error parsing form", http.StatusBadRequest)
+		return
+	}
+	key := r.FormValue("key")
+	key = strings.Trim(key, "\n")
+	key = strings.Trim(key, "\r")
+	key = strings.Trim(key, " ")
+	if key == "" {
+		http.Error(w, "Error parsing form", http.StatusBadRequest)
+		return
+	}
+	value := r.FormValue("value")
+	value = strings.Trim(value, "\n")
+	value = strings.Trim(value, "\r")
+	value = strings.Trim(value, " ")
+	var maxWorkers int
+	if key == "maxWorkers" {
+		maxWorkers, err = strconv.Atoi(value)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if maxWorkers < 0 || maxWorkers > 100 {
+			http.Error(w, "同时下载数必须大于0小于等于100", http.StatusBadRequest)
+			return
+		}
+	}
+	_, err = Sqlite.Cxt.Exec(`UPDATE conf SET value = ? WHERE key = ?`, value, key)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if key == "maxWorkers" {
+		TaskThreadPool.SetMaxWorkers(maxWorkers)
+	}
+	if key == "Token" {
+		Token = value
+	}
+	_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 200, Msg: "success"}))
 }
 func struct2Json(result Result) string {
 	JSON, _ := json.Marshal(result)

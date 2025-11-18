@@ -41,12 +41,12 @@ type Downloader struct {
 }
 
 type TsInfo struct {
-	Name      string
-	Url       string
-	Status    int     // 0 等待 1 下载中 2 下载完成 3 下载失败
-	Speed     float64 // 当前下载速度
-	ReadSize  int64   // 已下载大小
-	TotalSize int64   // 总大小
+	Name      string  `json:"name"`
+	Url       string  `json:"url"`
+	Status    int     `json:"status"`    // 0 等待 1 下载中 2 下载完成 3 下载失败
+	Speed     float64 `json:"speed"`     // 当前下载速度
+	ReadSize  int64   `json:"readSize"`  // 已下载大小
+	TotalSize int64   `json:"totalSize"` // 总大小
 }
 
 // ProgressReader 用于跟踪下载进度和速度
@@ -177,6 +177,11 @@ func (cxt *Downloader) InitCachePath(id string) error {
 	return nil
 }
 func (cxt *Downloader) DownloadM3u8(startTime time.Time) error {
+	if cxt.Status == 4 || cxt.Status == 5 {
+		cxt.Msg = fmt.Sprintf("%s下载失败，原因：用户操作", cxt.Filename)
+		utils.Error(errors.New(cxt.Msg))
+		return nil
+	}
 	cxt.Status = 1
 	var result string
 	var err error

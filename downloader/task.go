@@ -93,7 +93,6 @@ func (cxt *TaskThreadPool) worker(workerID int) {
 			// 执行任务
 			task()
 			cxt.wg.Done() // 任务完成
-			return
 		case <-cxt.quit:
 			return
 		}
@@ -104,13 +103,11 @@ func (cxt *TaskThreadPool) worker(workerID int) {
 func (cxt *TaskThreadPool) startWorkerIfNeeded() {
 	cxt.mutex.Lock()
 	defer cxt.mutex.Unlock()
-
 	// 检查是否可以启动新协程
 	for cxt.activeWorkers >= cxt.maxWorkers && cxt.maxWorkers > 0 {
 		// 等待直到可以启动新协程
 		cxt.cond.Wait()
 	}
-
 	// 检查是否已退出
 	select {
 	case <-cxt.quit:
@@ -181,7 +178,6 @@ func (cxt *TaskThreadPool) RunTask() error {
 	utils.Info(fmt.Sprintf("取得%d个新任务", len(taskList)))
 	for _, taskRows := range taskList {
 		taskRow := taskRows
-		fmt.Println(taskRow.Uuid)
 		cxt.DownloaderList[taskRow.Uuid] = &taskRow
 		client := &http.Client{}
 		if taskRow.Proxy != "" {
