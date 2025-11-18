@@ -3,6 +3,7 @@ package downloader
 import (
 	"M3u8Download/sqlite"
 	"M3u8Download/utils"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -180,15 +181,17 @@ func (cxt *TaskThreadPool) RunTask() error {
 		taskRow := taskRows
 		cxt.DownloaderList[taskRow.Uuid] = &taskRow
 		client := &http.Client{}
+		Transport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
 		if taskRow.Proxy != "" {
-			Transport := &http.Transport{}
 			var proxyURL *url.URL
 			proxyURL, err = url.Parse(taskRow.Proxy)
 			if err == nil {
 				Transport.Proxy = http.ProxyURL(proxyURL)
-				client.Transport = Transport
 			}
 		}
+		client.Transport = Transport
 		var updateSQL = ""
 		cxt.DownloaderList[taskRow.Uuid].Client = client
 		if err != nil {

@@ -3,6 +3,7 @@ package utils
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,4 +48,40 @@ func ClearDirectory(dirPath string) error {
 		}
 	}
 	return nil
+}
+func FileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	return !os.IsNotExist(err)
+}
+func DirExists(dirname string) bool {
+	info, err := os.Stat(dirname)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false
+		}
+		return false
+	}
+	return info.IsDir()
+}
+func CopyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer func(sourceFile *os.File) {
+		_ = sourceFile.Close()
+	}(sourceFile)
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer func(destFile *os.File) {
+		_ = destFile.Close()
+	}(destFile)
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		return err
+	}
+	err = destFile.Sync()
+	return err
 }

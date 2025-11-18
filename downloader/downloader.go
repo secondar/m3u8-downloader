@@ -282,9 +282,7 @@ func (cxt *Downloader) DownloadTs(index int, tsPath string, key string, pool *gp
 		cxt.TsList[index].Status = 3
 		return
 	}
-	// 发送请求
-	client := &http.Client{}
-	response, err = client.Do(req)
+	response, err = cxt.Client.Do(req)
 	if err != nil {
 		pool.Done()
 		utils.Error(err)

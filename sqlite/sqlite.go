@@ -1,8 +1,10 @@
 package sqlite
 
 import (
+	"M3u8Download/utils"
 	"database/sql"
 	_ "github.com/glebarez/go-sqlite"
+	"os"
 )
 
 type Sqlite struct {
@@ -10,7 +12,17 @@ type Sqlite struct {
 }
 
 func GetSqliteCxt() (*Sqlite, error) {
-	db, err := sql.Open("sqlite", "./data/db.db")
+	var dbPath = "./data/db.db"
+	if utils.IsDockerByCGroup() {
+		dbPath = "/data/db.db"
+		if !utils.FileExists(dbPath) {
+			if !utils.DirExists("/data") {
+				_ = os.MkdirAll("/data", os.ModePerm)
+			}
+			_ = utils.CopyFile("./data/db.db", dbPath)
+		}
+	}
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
 	}

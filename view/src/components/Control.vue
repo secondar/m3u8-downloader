@@ -487,6 +487,7 @@ const handleAdd = () => {
     }
     add(params).then(res => {
         if (res.code == 200) {
+            dialogVisible.value = false
             tableData.value = res.data
         } else {
             ElMessageBox.alert(res.msg, '发生错误', {
