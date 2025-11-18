@@ -77,3 +77,6 @@ $env:GOOS="darwin";$env:GOARCH="amd64"; go build -o M3u8Download-MacOS-Intel mai
 # MacOS Apple Silicon (ARM64)
 $env:GOOS="darwin";$env:GOARCH="arm64"; go build -o M3u8Download-MacOS-Silicon main.go
 ```
+
+# 鸣谢
+- [msterzhang/SpDown](https://github.com/msterzhang/SpDown)
