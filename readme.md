@@ -1,3 +1,7 @@
+# 两张图
+![1](image/1.png)
+![2](image/2.png)
+
 # 安装
 ## 二进制安装
 - [前往发布页：m3u8-downloader/releases/latest](https://github.com/secondar/m3u8-downloader/releases/latest)
