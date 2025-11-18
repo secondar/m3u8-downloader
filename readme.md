@@ -1,4 +1,35 @@
-# 
+# 安装
+## 二进制安装
+- [前往发布页：m3u8-downloader/releases/latest](https://github.com/secondar/m3u8-downloader/releases/latest)
+- 选择适合的版本下载使用
+## docker 安装
+- [镜像地址：bugquit/m3u8-downloader](https://hub.docker.com/r/bugquit/m3u8-downloader)
+```shell
+docker run -d \
+  --name m3u8-downloader \
+  -p 65533:65533 \
+  -v /docker/cache:/cache \
+  -v /docker/data:/data \
+  -v /docker/down:/down \
+  --network bridge \
+  bugquit/m3u8-downloader:latest
+```
+## 自行打包或修改
+```shell
+# 克隆源代码
+git clone https://github.com/secondar/m3u8-downloader.git
+cd m3u8-downloader
+go mod tidy
+go build -o m3u8-downloader.exe main.go
+m3u8-downloader.exe
+# 或者使用 go run main.go
+# 前端
+cd view
+yarn install # or npm install
+yarn build
+```
+
+
 
 # 指定平台打包
 
