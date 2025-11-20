@@ -1,7 +1,13 @@
 # 两张图
 ![1](image/1.png)
 ![2](image/2.png)
-
+# 访问
+```
+  http://你的ip:端口（默认65533）
+  例：http://localhost:65533
+  默认Token:123456
+  忘记Token ： 找到data/db.db 使用 sqlite 数据库管理工具打开找到conf表 修改key为Token的value 值
+```
 # 安装
 ## 二进制安装
 - [前往发布页：m3u8-downloader/releases/latest](https://github.com/secondar/m3u8-downloader/releases/latest)
@@ -77,3 +83,6 @@ $env:GOOS="darwin";$env:GOARCH="amd64"; go build -o M3u8Download-MacOS-Intel mai
 # MacOS Apple Silicon (ARM64)
 $env:GOOS="darwin";$env:GOARCH="arm64"; go build -o M3u8Download-MacOS-Silicon main.go
 ```
+
+# 鸣谢
+- [msterzhang/SpDown](https://github.com/msterzhang/SpDown)
