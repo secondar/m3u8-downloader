@@ -55,16 +55,40 @@
     justify-content: end;
     padding-top: 8px !important;
 }
-.control-setting-container{
+
+.control-setting-container {
     padding: 20px;
 }
+
 .control-setting-form {
     display: flex;
     justify-content: center;
     height: 32px;
     line-height: 32px;
 }
+
 .control-setting-form .input {
     margin-left: 10px;
     margin-right: 10px;
+}
+
+.infinite-list {
+    height: 300px;
+    padding: 20px;
+    margin: 0;
+    list-style: none;
+}
+
+.infinite-list .infinite-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 50px;
+    background: var(--el-color-primary-light-9);
+    margin: 10px;
+    color: var(--el-color-primary);
+}
+
+.infinite-list .infinite-list-item+.list-item {
+    margin-top: 10px;
 }

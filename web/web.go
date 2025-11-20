@@ -4,12 +4,15 @@ import (
 	"M3u8Download/downloader"
 	"M3u8Download/sqlite"
 	"M3u8Download/utils"
+	"M3u8Download/utils/m3u8"
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -83,6 +86,7 @@ func Run() {
 	mux.HandleFunc("/cleanUp", cleanUp)
 	mux.HandleFunc("/getConf", getConf)
 	mux.HandleFunc("/setConf", setConf)
+	mux.HandleFunc("/checkForUpdates", checkForUpdates)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 	handler := TokenMiddleware(mux)
 	utils.Info(fmt.Sprintf("M3u8Download服务已启动，请访问：http://localhost:65533"))
@@ -219,6 +223,41 @@ func add(w http.ResponseWriter, r *http.Request) {
 	threads, err = strconv.Atoi(Threads)
 	if err != nil || threads <= 0 || threads > 64 {
 		threads = 64
+	}
+	// 解析m3u8
+	client := &http.Client{}
+	Transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	if Proxy != "" {
+		var proxyURL *url.URL
+		proxyURL, err = url.Parse(Proxy)
+		if err == nil {
+			Transport.Proxy = http.ProxyURL(proxyURL)
+		}
+	}
+	client.Transport = Transport
+	var m3u8Info *m3u8.Info
+	m3u8Info, err = m3u8.ParseM3U8(client, Url, UserAgent, Cookie, Origin, Referer)
+	if err != nil {
+		_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 400, Msg: "任务添加失败：" + err.Error()}))
+		return
+	}
+	if m3u8Info.Type != m3u8.MASTER && m3u8Info.Type != m3u8.VOD {
+		_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 400, Msg: fmt.Sprintf("不支持的M3u8类型：%s", m3u8Info.Type)}))
+		return
+	}
+	if m3u8Info.Type == m3u8.MASTER {
+		type MASTER struct {
+			Name string `json:"name"`
+			Url  string `json:"url"`
+		}
+		var master []MASTER
+		for _, stream := range m3u8Info.Streams {
+			master = append(master, MASTER{Url: stream.URL, Name: fmt.Sprintf("名称：%s 带宽：%d bps 分辨率： %s 编码：%s", stream.Name, stream.Bandwidth, stream.Resolution, stream.Codecs)})
+		}
+		_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 201, Msg: "选择m3u8", Data: master}))
+		return
 	}
 	query := "INSERT INTO task (uuid,SavePath,Filename,Url,UserAgent,Cookie,Origin,Referer,Proxy,Threads,Status) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
 	_, err = Sqlite.Cxt.Exec(query, uuid.New().String(), SavePath, Filename, Url, UserAgent, Cookie, Origin, Referer, Proxy, Threads, 0)
@@ -441,6 +480,10 @@ func setConf(w http.ResponseWriter, r *http.Request) {
 	}
 	_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 200, Msg: "success"}))
 }
+func checkForUpdates(w http.ResponseWriter, r *http.Request) {
+	_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 200, Msg: "success", Data: utils.CheckForUpdates()}))
+}
+
 func struct2Json(result Result) string {
 	JSON, _ := json.Marshal(result)
 	return string(JSON)

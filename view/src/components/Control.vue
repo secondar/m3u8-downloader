@@ -1,7 +1,9 @@
 <template>
     <el-container>
-        <el-header class="control-header">
-            M3u8Download
+        <el-header class="control-header" style="display: flex;justify-content: space-between;">
+            <div>M3u8Download</div>
+            <div style="font-size: 15px;line-height: 24px;padding-top: 17px;cursor: pointer;"
+                @click="handleCheckForUpdatesBtn"><el-badge :is-dot="updateInfo.update != 0">1.0.1</el-badge></div>
         </el-header>
         <el-container>
             <el-aside class="control-aside" width="200px">
@@ -214,12 +216,45 @@
             </div>
         </template>
     </el-dialog>
+    <el-dialog v-model="m3u8StreamsDialogVisible" title="文件包含多个m3u8，请选择需要下载的文件" width="650"
+        :close-on-click-modal="false">
+        <ul class="infinite-list" style="overflow: auto">
+            <el-radio-group v-model="form.Url">
+                <el-radio v-for="(item, index) in m3u8Streams" :key="index" :value="item.url">{{ item.name }}</el-radio>
+            </el-radio-group>
+        </ul>
+        <template #footer>
+            <div class="dialog-footer">
+                <el-button @click="m3u8StreamsDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="handleAdd">
+                    下载
+                </el-button>
+            </div>
+        </template>
+    </el-dialog>
+    <el-dialog v-model="updateDialogVisible" title="版本更新" width="650" :close-on-click-modal="false">
+        <div class="infinite-list" style="overflow: auto">
+            <div>当前版本：{{ updateInfo.localVersion }}</div>
+            <div>最新版本：{{ updateInfo.remoteVersion }}</div>
+            <div>发布时间：{{ updateInfo.releaseTime }}</div>
+            <div>更新内容：</div>
+            <div style="padding-left: 2rem;">{{ updateInfo.body }}</div>
+        </div>
+        <template #footer>
+            <div class="dialog-footer">
+                <el-button @click="updateDialogVisible = false">关闭</el-button>
+                <el-button type="primary" @click="handleToUpdatePage">
+                    下载
+                </el-button>
+            </div>
+        </template>
+    </el-dialog>
 </template>
 <script setup lang="ts">
 import { Download, Delete, Stopwatch } from '@element-plus/icons-vue'
 import { ref, reactive } from 'vue'
 import { setToken } from '../utils/auth'
-import { list, stop, stopAll, del, delAll, cleanUp, add, getConf, setConf } from "../api/api";
+import { list, stop, stopAll, del, delAll, cleanUp, add, getConf, setConf, checkForUpdates } from "../api/api";
 import type { Params } from "../api/api";
 import { ElMessageBox, ElLoading, ElMessage } from 'element-plus'
 // 组件挂载时添加事件监听
@@ -229,6 +264,8 @@ const contextMenuVisible = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 const selectedRow = ref<any>(null)
 const dialogVisible = ref(false)
+const m3u8StreamsDialogVisible = ref(false)
+const updateDialogVisible = ref(false)
 const form = reactive({
     Url: '',
     Filename: '',
@@ -254,9 +291,21 @@ const conf = reactive({
     UserAgent: "",
     maxWorkers: 4 as any | number | string,
 })
+interface M3u8Streams {
+    name: string,
+    url: string
+}
+const m3u8Streams = ref<M3u8Streams[]>([])
 var tableData = ref([])
 var setIntervalControl: number
 var setIntervalControlStart: boolean = false
+const updateInfo = reactive({
+    localVersion: "" as any,
+    update: 0 as any | number,
+    body: "" as any,
+    remoteVersion: "" as any,
+    releaseTime: "" as any,
+})
 const select = (v: any) => {
     tableData.value = []
     menu.value.active = v
@@ -355,6 +404,7 @@ onUnmounted(() => {
 onMounted(() => {
     getList()
     handleGetConf()
+    handleCheckForUpdates()
     setIntervalControlStart = true
     setIntervalControl = setInterval(() => {
         getList()
@@ -488,7 +538,13 @@ const handleAdd = () => {
     add(params).then(res => {
         if (res.code == 200) {
             dialogVisible.value = false
+            m3u8StreamsDialogVisible.value = false
             tableData.value = res.data
+        } else if (res.code == 201) {
+            form.Url = ""
+            dialogVisible.value = false
+            m3u8Streams.value = res.data
+            m3u8StreamsDialogVisible.value = true
         } else {
             ElMessageBox.alert(res.msg, '发生错误', {
                 confirmButtonText: '确认'
@@ -551,6 +607,26 @@ const handleEditConf = (key: string, value: string) => {
         loading.close()
         handleGetConf()
     })
+}
+const handleCheckForUpdates = () => {
+    checkForUpdates({}).then((res) => {
+        if (res.code == 200) {
+            updateInfo.localVersion = res.data.localVersion ?? "";
+            updateInfo.update = res.data.update ?? 0;
+            updateInfo.body = res.data.body ?? "";
+            updateInfo.remoteVersion = res.data.remoteVersion ?? "";
+            updateInfo.releaseTime = res.data.releaseTime ?? "";
+        }
+    }).catch(() => {
+    })
+}
+const handleCheckForUpdatesBtn = () => {
+    if (updateInfo.update == 1) {
+        updateDialogVisible.value = true
+    }
+}
+const handleToUpdatePage = () => {
+    window.open("https://github.com/secondar/m3u8-downloader/releases/latest")
 }
 </script>
 <style scoped>

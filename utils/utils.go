@@ -2,8 +2,13 @@ package utils
 
 import (
 	"bufio"
+	"context"
+	"crypto/tls"
 	"fmt"
+	"github.com/google/go-github/v76/github"
+	"github.com/hashicorp/go-version"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,4 +89,33 @@ func CopyFile(src, dst string) error {
 	}
 	err = destFile.Sync()
 	return err
+}
+func CheckForUpdates() map[string]interface{} {
+	client := github.NewClient(&http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	})
+	ctx := context.Background()
+	// 指定要查询的仓库
+	owner := "secondar"
+	repo := "m3u8-downloader"
+	// 获取最新release信息
+	release, _, err := client.Repositories.GetLatestRelease(ctx, owner, repo)
+	localVersion := "v1.0.1"
+	result := make(map[string]interface{})
+	result["localVersion"] = localVersion
+	result["update"] = 0
+	if err != nil {
+		return result
+	}
+	local, _ := version.NewVersion(localVersion)
+	remote, _ := version.NewVersion(release.GetTagName())
+	if local.Compare(remote) < 0 {
+		result["update"] = 1
+		result["body"] = release.GetBody()
+		result["remoteVersion"] = release.GetTagName()
+		result["releaseTime"] = release.GetPublishedAt().Format("2006-01-02 15:04:05")
+	}
+	return result
 }

@@ -35,3 +35,6 @@ export function getConf(data: Params): Promise<any> {
 export function setConf(data: Params): Promise<any> {
   return post("/setConf", data)
 }
+export function checkForUpdates(data: Params): Promise<any> {
+  return get("/checkForUpdates", data)
+}
