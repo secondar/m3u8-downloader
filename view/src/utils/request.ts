@@ -20,7 +20,7 @@ interface ErrorResponse {
 // 创建axios实例
 const service: AxiosInstance = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL,
-    timeout: 10000,
+    timeout: 10000000,
 });
 
 // 请求拦截器
