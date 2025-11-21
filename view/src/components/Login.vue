@@ -6,7 +6,9 @@
       <div class="input"><el-input v-model="token" style="width: 240px" placeholder="Please input Token" /></div>
       <div><el-button type="primary" @click="handleLogin" plain>登入</el-button></div>
     </div>
-    <div class="tip"><el-text type="info">如果你忘记了Token，请自行使用Sqlite修改data/db.db下的conf表key为Token的value值</el-text></div>
+    <div class="tip"><el-text type="info">如果您忘记了Token，请自行使用Sqlite修改data/db.db下的conf表key为Token的value值</el-text></div>
+    <div class="tip" style="margin-top: 10px;"><el-text type="info">本工具仅用于学习交流，在您使用过程中所产生的任何问题包括法律问题作者均不承担任何责任</el-text></div>
+    <div class="tip" style="margin-top: 10px;"><el-text type="info">本工具免费开源，有需要可自行前往 <a href="https://github.com/secondar/m3u8-downloader" target="_blank">https://github.com/secondar/m3u8-downloader</a> 下载源代码查阅/编译/修改</el-text></div>
   </div>
 </template>
 <script setup lang="ts">

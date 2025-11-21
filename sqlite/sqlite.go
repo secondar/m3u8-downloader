@@ -12,12 +12,11 @@ type Sqlite struct {
 }
 
 func GetSqliteCxt() (*Sqlite, error) {
-	var dbPath = "./data/db.db"
+	var dbPath = utils.GetDataDir() + "/db.db"
 	if utils.IsDockerByCGroup() {
-		dbPath = "/data/db.db"
 		if !utils.FileExists(dbPath) {
-			if !utils.DirExists("/data") {
-				_ = os.MkdirAll("/data", os.ModePerm)
+			if !utils.DirExists(utils.GetDataDir()) {
+				_ = os.MkdirAll(utils.GetDataDir(), os.ModePerm)
 			}
 			_ = utils.CopyFile("./data/db.db", dbPath)
 		}

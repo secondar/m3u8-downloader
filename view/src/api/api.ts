@@ -38,3 +38,6 @@ export function setConf(data: Params): Promise<any> {
 export function checkForUpdates(data: Params): Promise<any> {
   return get("/checkForUpdates", data)
 }
+export function extractM3U8ByUrl(data: Params): Promise<any> {
+  return get("/extractM3U8ByUrl", data)
+}

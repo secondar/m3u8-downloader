@@ -8,4 +8,4 @@ COPY ./data /M3u8Download/data/
 WORKDIR /M3u8Download
 RUN chmod +x /M3u8Download/M3u8Download-Linux-x86_64
 EXPOSE 65533
-CMD ["./run.sh"]
+CMD ["./M3u8Download-Linux-x86_64"]

@@ -38,6 +38,13 @@ func GetCacheDir() string {
 		return "./cache"
 	}
 }
+
+func GetDataDir() string {
+	if IsDockerByCGroup() {
+		return "/data"
+	}
+	return "./data"
+}
 func ClearDirectory(dirPath string) error {
 	// 读取目录内容
 	entries, err := os.ReadDir(dirPath)

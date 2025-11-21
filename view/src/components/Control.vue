@@ -2,6 +2,7 @@
     <el-container>
         <el-header class="control-header" style="display: flex;justify-content: space-between;">
             <div>M3u8Download</div>
+            <div style="font-size: 12px;">{{ conf.ChromiumMsg }}</div>
             <div style="font-size: 15px;line-height: 24px;padding-top: 17px;cursor: pointer;"
                 @click="handleCheckForUpdatesBtn"><el-badge :is-dot="updateInfo.update != 0">1.0.1</el-badge></div>
         </el-header>
@@ -33,6 +34,13 @@
                             <el-icon>
                                 <Stopwatch />
                             </el-icon>
+                        </el-icon>
+                    </el-button>
+                    <el-button @click="handelExtractM3U8" v-if="menu.active == '1' && conf.isInstallChromium == 1"
+                        size="small" type="primary">
+                        通过网址提取M3u8
+                        <el-icon class="el-icon--right">
+                            <Download />
                         </el-icon>
                     </el-button>
                     <el-button @click="handleNewDownBtn" v-if="menu.active == '1'" size="small" type="primary">
@@ -249,12 +257,28 @@
             </div>
         </template>
     </el-dialog>
+    <el-dialog v-model="extractM3U8DialogVisible" title="提取M3U8列表" width="750" :close-on-click-modal="false">
+        <div class="infinite-list" style="overflow: auto">
+            <div v-for="(item, index) in extractM3U8List" :key="index">{{ item }}</div>
+        </div>
+        <template #footer>
+            <div class="dialog-footer">
+                <div style="font-size: 12px;color: #ccc;text-align: center;">提取的M3U8列表不一定是正确的地址，某些可能套用了播放解析地址，请自行判断
+                </div>
+                <br />
+                <el-button @click="extractM3U8DialogVisible = false">关闭</el-button>
+                <el-button type="primary" @click="handleNewDownBtn">
+                    新建下载
+                </el-button>
+            </div>
+        </template>
+    </el-dialog>
 </template>
 <script setup lang="ts">
 import { Download, Delete, Stopwatch } from '@element-plus/icons-vue'
 import { ref, reactive } from 'vue'
 import { setToken } from '../utils/auth'
-import { list, stop, stopAll, del, delAll, cleanUp, add, getConf, setConf, checkForUpdates } from "../api/api";
+import { list, stop, stopAll, del, delAll, cleanUp, add, getConf, setConf, checkForUpdates, extractM3U8ByUrl } from "../api/api";
 import type { Params } from "../api/api";
 import { ElMessageBox, ElLoading, ElMessage } from 'element-plus'
 // 组件挂载时添加事件监听
@@ -266,6 +290,7 @@ const selectedRow = ref<any>(null)
 const dialogVisible = ref(false)
 const m3u8StreamsDialogVisible = ref(false)
 const updateDialogVisible = ref(false)
+const extractM3U8DialogVisible = ref(false)
 const form = reactive({
     Url: '',
     Filename: '',
@@ -290,12 +315,17 @@ const conf = reactive({
     Token: "",
     UserAgent: "",
     maxWorkers: 4 as any | number | string,
+    ChromiumMsg: "",
+    CanBeInstalled: 0 as any | number | string,
+    isInstallChromium: 0 as any | number | string
+
 })
 interface M3u8Streams {
     name: string,
     url: string
 }
 const m3u8Streams = ref<M3u8Streams[]>([])
+const extractM3U8List = ref<string[]>([])
 var tableData = ref([])
 var setIntervalControl: number
 var setIntervalControlStart: boolean = false
@@ -571,6 +601,9 @@ const handleGetConf = () => {
             conf.Proxy = res.data.Proxy
             conf.Token = res.data.Token
             conf.maxWorkers = res.data.maxWorkers
+            conf.ChromiumMsg = res.data.ChromiumMsg
+            conf.CanBeInstalled = res.data.CanBeInstalled
+            conf.isInstallChromium = res.data.isInstallChromium
         }
     }).catch(() => {
     })
@@ -627,6 +660,45 @@ const handleCheckForUpdatesBtn = () => {
 }
 const handleToUpdatePage = () => {
     window.open("https://github.com/secondar/m3u8-downloader/releases/latest")
+}
+const handelExtractM3U8 = () => {
+    ElMessageBox.prompt('请输入网址', '通过网址提取M3u8', {
+        confirmButtonText: '提交',
+        cancelButtonText: '取消',
+    }).then(({ value }) => {
+        if (value.trim() == "") {
+            ElMessageBox.alert('请输入网址', '错误', {
+                confirmButtonText: '确认'
+            }).then(() => {
+                handelExtractM3U8()
+            }).catch(() => {
+                handelExtractM3U8()
+            })
+            return false;
+        }
+        const loading = ElLoading.service({
+            lock: true,
+            text: 'Loading...',
+            background: 'rgba(0, 0, 0, 0.7)',
+        })
+        extractM3U8ByUrl({ "url": value })
+            .then(res => {
+                if (res.code == 200) {
+                    extractM3U8List.value = res.data
+                    extractM3U8DialogVisible.value = true
+                    extractM3U8DialogVisible.value = true
+                }
+            })
+            .catch((err) => {
+                ElMessageBox.alert(err.response != undefined && err.response.data != undefined ? err.response.data : err.message, '发生错误', {
+                    confirmButtonText: '确认'
+                })
+            }).finally(() => {
+                loading.close()
+            })
+        // extractM3U8ByUrl
+    }).catch(() => {
+    })
 }
 </script>
 <style scoped>

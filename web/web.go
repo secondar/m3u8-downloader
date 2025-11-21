@@ -4,17 +4,20 @@ import (
 	"M3u8Download/downloader"
 	"M3u8Download/sqlite"
 	"M3u8Download/utils"
+	"M3u8Download/utils/chromium"
 	"M3u8Download/utils/m3u8"
 	"context"
 	"crypto/tls"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,6 +26,7 @@ import (
 var Sqlite *sqlite.Sqlite
 var TaskThreadPool *downloader.TaskThreadPool
 var Token string
+var chromiumManager *chromium.Manager
 
 type Result struct {
 	Code int         `json:"code"`
@@ -33,6 +37,15 @@ type Result struct {
 func Run() {
 	var err error
 	_ = utils.ClearDirectory(utils.GetCacheDir())
+	// 创建Chromium管理器
+	chromiumManager = chromium.NewChromiumManager(utils.GetDataDir())
+	if !chromiumManager.CheckChromiumInstalled() {
+		utils.Info("正在安装UnGoogled Chromium...")
+		err = chromiumManager.InstallUnGoogledChromium()
+		if err != nil {
+			utils.Error(errors.New(fmt.Sprintf("UnGoogled Chromium 安装失败：%s", err.Error())))
+		}
+	}
 	Sqlite, err = sqlite.GetSqliteCxt()
 	if err != nil {
 		utils.Error(err)
@@ -87,6 +100,7 @@ func Run() {
 	mux.HandleFunc("/getConf", getConf)
 	mux.HandleFunc("/setConf", setConf)
 	mux.HandleFunc("/checkForUpdates", checkForUpdates)
+	mux.HandleFunc("/extractM3U8ByUrl", extractM3U8ByUrl)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 	handler := TokenMiddleware(mux)
 	utils.Info(fmt.Sprintf("M3u8Download服务已启动，请访问：http://localhost:65533"))
@@ -434,6 +448,36 @@ func getConf(w http.ResponseWriter, r *http.Request) {
 		err = rows.Scan(&key, &value)
 		data[key] = value
 	}
+	data["isInstallChromium"] = 0
+	data["ChromiumMsg"] = "未安装UnGoogled Chromium"
+	if chromiumManager.IsInstalled {
+		data["isInstallChromium"] = 1
+		data["ChromiumMsg"] = "已安装UnGoogled Chromium"
+	}
+	data["CanBeInstalled"] = 0
+	switch runtime.GOOS {
+	case "linux":
+		if runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64" {
+			data["CanBeInstalled"] = 1
+		} else {
+			data["ChromiumMsg"] = "由于UnGoogled Chromium发型限制，不支持32位操作系统"
+		}
+	case "windows":
+		if runtime.GOARCH != "arm" {
+			data["CanBeInstalled"] = 1
+		} else {
+			data["ChromiumMsg"] = "由于UnGoogled Chromium发型限制，不支持arm32位操作系统"
+		}
+	case "darwin":
+		data["CanBeInstalled"] = 1
+		data["ChromiumMsg"] = "MacOs下需要自行安装UnGoogled Chromium，请到 https://ungoogled-software.github.io/ungoogled-chromium-binaries/releases/macos/ 选择适合自己的版本"
+	case "freebsd":
+		if runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64" {
+			data["CanBeInstalled"] = 1
+		} else {
+			data["ChromiumMsg"] = "由于UnGoogled Chromium发型限制，不支持32位操作系统"
+		}
+	}
 	_ = rows.Close()
 	_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 200, Msg: "success", Data: data}))
 }
@@ -481,9 +525,26 @@ func setConf(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 200, Msg: "success"}))
 }
 func checkForUpdates(w http.ResponseWriter, r *http.Request) {
+	_ = r
 	_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 200, Msg: "success", Data: utils.CheckForUpdates()}))
 }
-
+func extractM3U8ByUrl(w http.ResponseWriter, r *http.Request) {
+	if !chromiumManager.IsInstalled {
+		http.Error(w, "UnGoogled Chromium is not installed", http.StatusBadRequest)
+		return
+	}
+	var Url = r.URL.Query().Get("url")
+	resp, err := chromiumManager.ExtractM3U8(Url)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if len(resp.M3U8URLs) > 0 {
+		_, _ = fmt.Fprintf(w, struct2Json(Result{Code: 200, Msg: "success", Data: resp.M3U8URLs}))
+	} else {
+		http.Error(w, "未找到m3u8文件", http.StatusBadRequest)
+	}
+}
 func struct2Json(result Result) string {
 	JSON, _ := json.Marshal(result)
 	return string(JSON)
