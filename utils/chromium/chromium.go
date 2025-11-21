@@ -217,7 +217,7 @@ func (cm *Manager) downloadFile(filepath string, url string) error {
 		_ = out.Close()
 	}(out)
 	totalSize := resp.ContentLength
-	progressReader := &progressReader{
+	pr := &progressReader{
 		Reader:   resp.Body,
 		total:    totalSize,
 		lastTime: time.Now(),
@@ -230,7 +230,7 @@ func (cm *Manager) downloadFile(filepath string, url string) error {
 			}
 		},
 	}
-	_, err = io.Copy(out, progressReader)
+	_, err = io.Copy(out, pr)
 	return err
 }
 
@@ -244,33 +244,34 @@ func (cm *Manager) extractTarArchive(archivePath, targetDir, types string) error
 		_ = file.Close()
 	}(file)
 
-	var gr *gzip.Reader
-	var xr *xz.Reader
-	if types == "gz" {
-		gr, err = gzip.NewReader(file)
+	var tr *tar.Reader
+	switch types {
+	case "gz":
+		gr, err := gzip.NewReader(file)
 		if err != nil {
 			return err
 		}
 		defer func(gr *gzip.Reader) {
 			_ = gr.Close()
 		}(gr)
-	} else if types == "xz" {
-		xr, err = xz.NewReader(file)
+		tr = tar.NewReader(gr)
+	case "xz":
+		xr, err := xz.NewReader(file)
 		if err != nil {
 			return err
 		}
-	} else {
-		gr = nil
-	}
-
-	var tr *tar.Reader
-	if gr != nil {
-		tr = tar.NewReader(gr)
-	} else if xr != nil {
 		tr = tar.NewReader(xr)
-	} else {
+	default:
 		tr = tar.NewReader(file)
 	}
+
+	// 使用带缓冲的写入器提高性能
+	const bufferSize = 1024 * 1024 * 2 // 2MB
+	buf := make([]byte, bufferSize)
+
+	// 添加文件计数器
+	fileCount := 0
+
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -280,33 +281,66 @@ func (cm *Manager) extractTarArchive(archivePath, targetDir, types string) error
 			return err
 		}
 
+		// 移除第一层目录结构
 		fName := header.Name
 		fNames := strings.Split(fName, "/")
-		fName = strings.Replace(fName, fNames[0], "", -1)
+		if len(fNames) > 1 {
+			fName = strings.Join(fNames[1:], "/")
+		}
+
+		if fName == "" {
+			continue
+		}
+
+		fileCount++
 		path := filepath.Join(targetDir, fName)
-		utils.Info(fmt.Sprintf("正在解压文件: %s", path))
+		utils.Info(fmt.Sprintf("正在解压文件 [%d]: %s (大小: %d bytes)", fileCount, path, header.Size))
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(path, 0755); err != nil {
 				return err
 			}
+			utils.Info(fmt.Sprintf("创建目录 [%d]: %s", fileCount, path))
 		case tar.TypeReg:
 			dir := filepath.Dir(path)
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				return err
 			}
-			outFile, err := os.Create(path)
+			outFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode))
 			if err != nil {
 				return err
 			}
-			if _, err = io.Copy(outFile, tr); err != nil {
+
+			// 创建带进度显示的Reader
+			pr := &progressReader{
+				Reader:   tr,
+				total:    header.Size,
+				lastTime: time.Now(),
+				onProgress: func(current, total int64, speed float64) {
+					if total > 0 {
+						progress := float64(current) / float64(total) * 100
+						utils.Info(fmt.Sprintf("文件 [%d] %s 进度: %.1f%% (%d/%d bytes) 速度: %.2f KB/s",
+							fileCount, filepath.Base(path), progress, current, total, speed/1024))
+					} else {
+						utils.Info(fmt.Sprintf("文件 [%d] %s 已处理: %d bytes 速度: %.2f KB/s",
+							fileCount, filepath.Base(path), current, speed/1024))
+					}
+				},
+			}
+
+			// 使用带进度的Reader复制数据
+			if _, err = io.CopyBuffer(outFile, pr, buf); err != nil {
 				_ = outFile.Close()
 				return err
 			}
 			_ = outFile.Close()
+
+			// 保留原始文件权限
+			if err := os.Chmod(path, os.FileMode(header.Mode)); err != nil {
+				return err
+			}
 		}
 	}
-
 	return nil
 }
 
