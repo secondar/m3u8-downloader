@@ -1,6 +1,29 @@
 # 两张图
 ![1](image/1.png)
 ![2](image/2.png)
+# Linux下的依赖
+## 
+```shell
+libgtk-3-0 - GTK+ 图形界面库
+libnss3 - Network Security Services 库
+libcups2 - Common UNIX Printing System
+libxtst6 - X11 Testing Library
+libasound2 - Advanced Linux Sound Architecture
+libatk1.0-0 - Accessibility Toolkit
+libatk-bridge2.0-0 - AT-SPI 2 bridge for accessibility
+libcairo2 - Cairo 2D vector graphics library
+libdrm2 - Direct Rendering Manager
+libx11-6 - X11 client-side library
+libxcomposite1 - X11 Composite extension library
+libxdamage1 - X11 Damage extension library
+libxext6 - X11 miscellaneous extension library
+libxfixes3 - X11 Fixes extension library
+libxrandr2 - X11 RandR extension library
+libxrender1 - X Rendering Extension client library
+libxss1 - X11 Screen Saver extension library
+libxt6 - X11 toolkit intrinsics library
+libgbm1 - Generic Buffer Manager library for graphics rendering
+```
 # 访问
 ```
   http://你的ip:端口（默认65533）
