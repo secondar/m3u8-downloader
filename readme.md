@@ -86,3 +86,7 @@ $env:GOOS="darwin";$env:GOARCH="arm64"; go build -o M3u8Download-MacOS-Silicon m
 
 # 鸣谢
 - [msterzhang/SpDown](https://github.com/msterzhang/SpDown)
+
+# 免责声明
+## 本工具仅用于学习交流，在您使用过程中所产生的任何问题包括法律问题作者均不承担任何责任
+## 本工具免费、完全开源，有需要可自行下载源代码查阅/编译/修改
